@@ -35,6 +35,23 @@
         .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
         .tab-inactive { color: #64748b; cursor: pointer; }
         .tab-inactive:hover { color: #2563eb; }
+
+        /* 搜索建议列表样式 */
+        .suggestion-item:hover { background-color: #f3f4f6; cursor: pointer; }
+        
+        /* Tooltip 辅助样式 */
+        .tooltip-arrow {
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            margin-left: -4px;
+            width: 8px;
+            height: 8px;
+            background: #1f2937;
+            transform: rotate(45deg);
+        }
+        /* 自定义下拉框禁用状态 */
+        select:disabled { background-color: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
     </style>
 </head>
 <body class="bg-gray-50 h-screen flex flex-col md:flex-row overflow-hidden font-sans text-slate-800">
@@ -48,7 +65,7 @@
                 本福特校验器
             </h1>
             <div class="flex justify-between items-center mt-2">
-                <p class="text-xs text-slate-400">Pro Statistics Version</p>
+                <p class="text-xs text-slate-400">Benford's Law Validator</p>
                 <button onclick="toggleManual(true)" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-600 px-2 py-1 rounded transition-colors flex items-center gap-1">用户手册</button>
             </div>
         </div>
@@ -60,15 +77,24 @@
                 <button onclick="switchTab('manual')" id="tab-manual" class="flex-1 pb-2 text-sm text-center tab-inactive transition-colors">手动上传</button>
             </div>
 
-            <div id="input-auto" class="space-y-3">
+            <div id="input-auto" class="space-y-3 relative">
                 <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">公司代码</label>
-                        <input type="text" id="stockCode" value="600755" class="w-full px-3 py-2 text-sm border border-gray-300 rounded outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如: 600755">
+                    <div class="relative">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">A股公司代码 / 简称</label>
+                        <input type="text" id="stockCode" 
+                               oninput="handleStockSearch(this.value)"
+                               onfocus="handleStockSearch(this.value)"
+                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded outline-none focus:ring-2 focus:ring-blue-500" 
+                               placeholder="输入代码或简称" autocomplete="off">
+                        
+                        <div id="stockSuggestions" class="hidden absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+                            </div>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">年份</label>
-                        <input type="text" id="year" value="2023" class="w-full px-3 py-2 text-sm border border-gray-300 rounded outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如: 2023">
+                        <select id="year" class="w-full px-3 py-2 text-sm border border-gray-300 rounded outline-none focus:ring-2 focus:ring-blue-500" disabled>
+                            <option value="">请先选择公司</option>
+                        </select>
                     </div>
                 </div>
             </div>
@@ -78,7 +104,7 @@
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">上传年报 PDF</label>
                         <input type="file" id="fileInput" accept=".pdf" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-                        <p class="text-[10px] text-gray-400 mt-1">文件分析后将自动删除，不保存。</p>
+                        <p class="text-[10px] text-gray-400 mt-1">文件分析后将自动删除。</p>
                     </div>
                 </div>
             </div>
@@ -142,7 +168,6 @@
             </section>
 
             <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                
                 <section class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full">
                     <div class="px-6 py-3 border-b border-gray-100 bg-gray-50/50 flex-none">
                         <h3 class="text-sm font-bold text-gray-800">📈 分布走势图</h3>
@@ -156,12 +181,13 @@
 
                 <section class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full">
                     <div class="px-6 py-3 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center flex-none">
-                        <h3 class="text-sm font-bold text-gray-800">📋 详细频数表</h3>
+                        <h3 class="text-sm font-bold text-gray-800" id="tableHeaderTitle">📋 详细频数表</h3>
+                        
                         <button id="exportBtn" onclick="exportToCSV()" class="hidden text-xs bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1 rounded border border-green-200 transition-colors flex items-center gap-1">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
-                            导出提取明细
+                            导出明细
                         </button>
                     </div>
                     <div class="flex-1 overflow-auto min-h-0">
@@ -203,7 +229,7 @@
                 <ul>
                     <li><strong>数据输入：</strong> 
                         <ul>
-                            <li><strong>在线获取</strong>：输入 6 位 A 股股票代码（如 <code>600755</code>）和 4 位年份。</li>
+                            <li><strong>在线获取</strong>：输入A股股票代码或公司简称，选择年份。</li>
                             <li><strong>手动上传</strong>：支持用户手动上传PDF。</li>
                         </ul>
                     </li>
@@ -267,77 +293,189 @@
     <script>
         let chartInstance = null;
         let globalRawData = [];
-        let currentMode = 'auto'; // 'auto' or 'manual'
+        let currentMode = 'auto'; 
+        let searchTimeout = null;
 
-        // === Tab 切换逻辑 ===
-        function switchTab(mode) {
-            currentMode = mode;
-            if (mode === 'auto') {
-                document.getElementById('tab-auto').className = 'flex-1 pb-2 text-sm text-center tab-active transition-colors';
-                document.getElementById('tab-manual').className = 'flex-1 pb-2 text-sm text-center tab-inactive transition-colors';
-                document.getElementById('input-auto').classList.remove('hidden');
-                document.getElementById('input-manual').classList.add('hidden');
-            } else {
-                document.getElementById('tab-auto').className = 'flex-1 pb-2 text-sm text-center tab-inactive transition-colors';
-                document.getElementById('tab-manual').className = 'flex-1 pb-2 text-sm text-center tab-active transition-colors';
-                document.getElementById('input-auto').classList.add('hidden');
-                document.getElementById('input-manual').classList.remove('hidden');
-            }
-        }
-
-        function toggleManual(show) {
-            const modal = document.getElementById('manualModal');
-            show ? modal.classList.remove('hidden') : modal.classList.add('hidden');
-        }
-
-        // === CSV 导出逻辑 (字段名+数字) ===
-        function exportToCSV() {
-            if (!globalRawData || globalRawData.length === 0) {
-                alert("没有可导出的数据");
+        // === 1. 股票搜索逻辑 ===
+        async function handleStockSearch(query) {
+            const list = document.getElementById('stockSuggestions');
+            
+            if (!query || query.length < 1) {
+                list.classList.add('hidden');
                 return;
             }
 
-            let csvContent = "\ufeff"; 
-            // 增加 "项目名称 (Row Label)"
-            csvContent += "项目名称 (Item),提取数值 (Value),校验位 (Digit),来源列名 (Column),原始行号 (Index)\n";
-
-            globalRawData.forEach(row => {
-                const label = `"${(row.row_label || '').replace(/"/g, '""')}"`;
-                const colName = `"${(row.column_name || '').replace(/"/g, '""')}"`;
-                const digit = row.extracted_digit || '';
-                
-                const line = `${label},${row.extracted_value},${digit},${colName},${row.row_index}`;
-                csvContent += line + "\n";
-            });
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", `benford_details_${new Date().getTime()}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            if (searchTimeout) clearTimeout(searchTimeout);
+            
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                    const json = await res.json();
+                    
+                    if (json.success && json.data.length > 0) {
+                        list.innerHTML = json.data.map(item => `
+                            <div onclick="selectStock('${item.code}', '${item.name}')" class="suggestion-item px-3 py-2 text-sm text-gray-700 flex justify-between border-b border-gray-50 last:border-0">
+                                <span class="font-mono font-bold text-blue-600">${item.code}</span>
+                                <span class="text-gray-600">${item.name}</span>
+                            </div>
+                        `).join('');
+                        list.classList.remove('hidden');
+                    } else {
+                        list.classList.add('hidden');
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }, 300);
         }
 
+        // 选中股票后：1. 填入输入框 2. 获取并填充年份
+        async function selectStock(code, name) {
+            const input = document.getElementById('stockCode');
+            const yearSelect = document.getElementById('year');
+            
+            input.value = `${code} - ${name}`; 
+            document.getElementById('stockSuggestions').classList.add('hidden');
+
+            // 重置并禁用年份选择，显示加载中
+            yearSelect.innerHTML = '<option>加载中...</option>';
+            yearSelect.disabled = true;
+
+            try {
+                // 获取该股票的年份列表
+                const res = await fetch(`/api/years?code=${code}`);
+                const json = await res.json();
+
+                if(json.success && json.data.length > 0) {
+                    yearSelect.innerHTML = json.data.map(y => `<option value="${y}">${y}</option>`).join('');
+                    yearSelect.disabled = false;
+                } else {
+                    yearSelect.innerHTML = '<option>无可用年份</option>';
+                }
+            } catch(e) {
+                yearSelect.innerHTML = '<option>加载失败</option>';
+            }
+        }
+
+        document.addEventListener('click', function(e) {
+            const list = document.getElementById('stockSuggestions');
+            const input = document.getElementById('stockCode');
+            if (!list.contains(e.target) && e.target !== input) {
+                list.classList.add('hidden');
+            }
+        });
+
+        // === 2. 渲染结论 (核心修改：Tooltip 精确悬停) ===
+        function renderConclusion(data) {
+             const container = document.getElementById('conclusionContainer');
+            const pVal = parseFloat(data.p_value);
+            const isSig = pVal < 0.05;
+            
+            let textHtml = data.conclusion.replace(/(严重偏离|高风险)/g, '<span class="text-red-600 font-bold">$1</span>')
+                                          .replace(/(显著偏离|中等风险)/g, '<span class="text-yellow-600 font-bold">$1</span>')
+                                          .replace(/(符合|低风险)/g, '<span class="text-green-600 font-bold">$1</span>');
+
+            const statsHtml = `
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                        <div class="flex items-center gap-1">
+                            <span class="text-xs text-blue-500 font-semibold uppercase tracking-wider">卡方统计量</span>
+                            
+                            <div class="group relative inline-block">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <div class="hidden group-hover:block absolute z-50 left-full top-1/2 transform -translate-y-1/2 ml-2 w-64 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+                                    衡量实际分布与本福特理论分布的偏离程度。数值越大，偏离越严重。
+                                    <div class="absolute top-1/2 -left-1 w-2 h-2 bg-gray-800 transform -translate-y-1/2 rotate-45"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-2xl font-mono font-bold text-blue-700 mt-1">${data.chi_square}</div>
+                    </div>
+
+                    <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                        <div class="flex items-center gap-1">
+                            <span class="text-xs text-indigo-500 font-semibold uppercase tracking-wider">P值 (P-Value)</span>
+                            
+                            <div class="group relative inline-block">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <div class="hidden group-hover:block absolute z-50 left-full top-1/2 transform -translate-y-1/2 ml-2 w-64 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+                                    在假设数据自然生成的前提下，出现当前偏差的概率。<br>P < 0.05 通常被认为存在统计学上的显著异常。
+                                    <div class="absolute top-1/2 -left-1 w-2 h-2 bg-gray-800 transform -translate-y-1/2 rotate-45"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-2xl font-mono font-bold ${isSig ? 'text-red-600' : 'text-green-600'} mt-1">${data.p_value}</div>
+                    </div>
+
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <span class="text-xs text-gray-500 font-semibold uppercase tracking-wider">临界值 (95%)</span>
+                        <div class="text-2xl font-mono font-bold text-gray-700 mt-1">${data.critical_value}</div>
+                    </div>
+                </div>
+                
+                <div class="bg-white border-l-4 ${isSig ? 'border-red-400' : 'border-green-400'} pl-4 py-2">
+                    <div class="text-sm text-gray-600 whitespace-pre-line leading-relaxed">${textHtml}</div>
+                </div>`;
+            container.innerHTML = statsHtml;
+        }
+
+        // === 3. 渲染表格 ===
+        function renderTable(labels, actual, theoretical, counts) {
+            const tbody = document.getElementById('dataTableBody');
+            tbody.innerHTML = '';
+            
+            const totalSamples = counts.reduce((a, b) => a + b, 0);
+            document.getElementById('tableHeaderTitle').innerText = `📋 详细频数表 (样本总数: ${totalSamples})`;
+
+            labels.forEach((label, i) => {
+                const actVal = actual[i];
+                const theoVal = theoretical[i];
+                const diff = actVal - theoVal;
+                const relDiff = theoVal > 0 ? (diff / theoVal) : 0;
+                const diffPct = (relDiff * 100).toFixed(2);
+                const isAlert = Math.abs(relDiff) > 0.2; 
+                const diffClass = isAlert ? (diff > 0 ? "text-red-500 font-bold" : "text-blue-500 font-bold") : "text-gray-400";
+                
+                const row = `
+                    <tr class="hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
+                        <td class="px-4 py-3 text-sm font-bold text-gray-800 font-mono">${label}</td>
+                        <td class="px-4 py-3 text-right text-sm text-gray-600 font-mono">${counts[i]}</td>
+                        <td class="px-4 py-3 text-right text-sm text-gray-600 font-mono">${(actVal * 100).toFixed(2)}%</td>
+                        <td class="px-4 py-3 text-right text-sm text-gray-400 font-mono">${(theoVal * 100).toFixed(2)}%</td>
+                        <td class="px-4 py-3 text-right text-sm font-mono ${diffClass}">${diff > 0 ? '+' : ''}${diffPct}%</td>
+                    </tr>`;
+                tbody.innerHTML += row;
+            });
+        }
+
+        // === 4. 开始分析 ===
         async function startAnalysis() {
             const digitPosition = document.getElementById('digitPosition').value;
             const numeralSystem = document.getElementById('numeralSystem').value;
-            
             const btn = document.getElementById('analyzeBtn');
             const statusArea = document.getElementById('statusArea');
             const statusDesc = document.getElementById('statusDesc');
             const exportBtn = document.getElementById('exportBtn');
 
-            // 构造请求数据
             let body;
             let headers = {};
             
             if (currentMode === 'auto') {
-                const stockCode = document.getElementById('stockCode').value.trim();
-                const year = document.getElementById('year').value.trim();
-                if (!stockCode || !year) { alert("请输入公司代码和年份"); return; }
+                let stockCodeInput = document.getElementById('stockCode').value.trim();
+                const year = document.getElementById('year').value; // 这里获取的是 select 的 value
                 
+                if (!stockCodeInput) { alert("请先搜索并选择公司"); return; }
+                if (!year) { alert("请选择年份"); return; }
+                
+                let stockCode = stockCodeInput;
+                if (stockCodeInput.includes(' - ')) {
+                    stockCode = stockCodeInput.split(' - ')[0].trim();
+                }
+
                 headers['Content-Type'] = 'application/json';
                 body = JSON.stringify({
                     stock_code: stockCode,
@@ -356,11 +494,10 @@
                 formData.append('digit_position', digitPosition);
                 formData.append('numeral_system', numeralSystem);
                 
-                body = formData; // fetch 自动处理 multipart headers
+                body = formData; 
                 statusDesc.innerText = `正在上传并分析文件...`;
             }
 
-            // UI Update
             btn.disabled = true;
             btn.classList.add('opacity-50', 'cursor-not-allowed');
             statusArea.classList.remove('hidden');
@@ -369,11 +506,12 @@
             document.getElementById('conclusionContainer').innerHTML = '<div class="text-center text-gray-400 py-4">计算中...</div>';
             document.getElementById('dataTableBody').innerHTML = '';
             if(chartInstance) chartInstance.destroy();
+            document.getElementById('tableHeaderTitle').innerText = '📋 详细频数表';
 
             try {
                 const response = await fetch('/api/analyze', {
                     method: 'POST',
-                    headers: headers, // 如果是 FormData，不要手动设置 Content-Type
+                    headers: headers,
                     body: body
                 });
 
@@ -401,110 +539,63 @@
             }
         }
 
-        // ... (renderConclusion, renderChart 保持不变) ...
-        function renderConclusion(data) {
-             const container = document.getElementById('conclusionContainer');
-            const pVal = parseFloat(data.p_value);
-            const isSig = pVal < 0.05;
-            
-            let textHtml = data.conclusion.replace(/(严重偏离|高风险)/g, '<span class="text-red-600 font-bold">$1</span>')
-                                          .replace(/(显著偏离|中等风险)/g, '<span class="text-yellow-600 font-bold">$1</span>')
-                                          .replace(/(符合|低风险)/g, '<span class="text-green-600 font-bold">$1</span>');
+        // === 其他通用函数 ===
+        function switchTab(mode) {
+            currentMode = mode;
+            if (mode === 'auto') {
+                document.getElementById('tab-auto').className = 'flex-1 pb-2 text-sm text-center tab-active transition-colors';
+                document.getElementById('tab-manual').className = 'flex-1 pb-2 text-sm text-center tab-inactive transition-colors';
+                document.getElementById('input-auto').classList.remove('hidden');
+                document.getElementById('input-manual').classList.add('hidden');
+            } else {
+                document.getElementById('tab-auto').className = 'flex-1 pb-2 text-sm text-center tab-inactive transition-colors';
+                document.getElementById('tab-manual').className = 'flex-1 pb-2 text-sm text-center tab-active transition-colors';
+                document.getElementById('input-auto').classList.add('hidden');
+                document.getElementById('input-manual').classList.remove('hidden');
+            }
+        }
 
-            const statsHtml = `
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                        <span class="text-xs text-blue-500 font-semibold uppercase tracking-wider">卡方统计量 (Chi²)</span>
-                        <div class="text-2xl font-mono font-bold text-blue-700 mt-1">${data.chi_square}</div>
-                    </div>
-                    <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
-                        <span class="text-xs text-indigo-500 font-semibold uppercase tracking-wider">P值 (P-Value)</span>
-                        <div class="text-2xl font-mono font-bold ${isSig ? 'text-red-600' : 'text-green-600'} mt-1">${data.p_value}</div>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        <span class="text-xs text-gray-500 font-semibold uppercase tracking-wider">自由度 (df)</span>
-                        <div class="text-2xl font-mono font-bold text-gray-700 mt-1">${data.degrees_of_freedom}</div>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        <span class="text-xs text-gray-500 font-semibold uppercase tracking-wider">临界值 (95%)</span>
-                        <div class="text-2xl font-mono font-bold text-gray-700 mt-1">${data.critical_value}</div>
-                    </div>
-                </div>
-                <div class="bg-white border-l-4 ${isSig ? 'border-red-400' : 'border-green-400'} pl-4 py-2">
-                    <div class="text-sm text-gray-600 whitespace-pre-line leading-relaxed">${textHtml}</div>
-                </div>
-            `;
-            container.innerHTML = statsHtml;
+        function toggleManual(show) {
+            const modal = document.getElementById('manualModal');
+            show ? modal.classList.remove('hidden') : modal.classList.add('hidden');
+        }
+
+        function exportToCSV() {
+            if (!globalRawData || globalRawData.length === 0) {
+                alert("没有可导出的数据");
+                return;
+            }
+            let csvContent = "\ufeff"; 
+            csvContent += "项目名称 (Item),提取数值 (Value),校验位 (Digit),来源列名 (Column),原始行号 (Index)\n";
+            globalRawData.forEach(row => {
+                const label = `"${(row.row_label || '').replace(/"/g, '""')}"`;
+                const colName = `"${(row.column_name || '').replace(/"/g, '""')}"`;
+                const digit = row.extracted_digit || '';
+                const line = `${label},${row.extracted_value},${digit},${colName},${row.row_index}`;
+                csvContent += line + "\n";
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `benford_details_${new Date().getTime()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         function renderChart(labels, actual, theoretical) {
-             const ctx = document.getElementById('benfordChart').getContext('2d');
+            const ctx = document.getElementById('benfordChart').getContext('2d');
             chartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [
-                        {
-                            label: '实际分布',
-                            data: actual,
-                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
-                            borderRadius: 4,
-                            order: 2
-                        },
-                        {
-                            label: '理论分布',
-                            data: theoretical,
-                            type: 'line',
-                            borderColor: '#ef4444',
-                            borderWidth: 2,
-                            borderDash: [5, 5],
-                            pointRadius: 4,
-                            pointBackgroundColor: '#fff',
-                            tension: 0.2,
-                            order: 1
-                        }
+                        { label: '实际分布', data: actual, backgroundColor: 'rgba(59, 130, 246, 0.7)', borderRadius: 4, order: 2 },
+                        { label: '理论分布', data: theoretical, type: 'line', borderColor: '#ef4444', borderWidth: 2, borderDash: [5, 5], pointRadius: 4, pointBackgroundColor: '#fff', tension: 0.2, order: 1 }
                     ]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'top' },
-                        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.raw * 100).toFixed(2) + '%' } }
-                    },
-                    scales: {
-                        y: { beginAtZero: true, ticks: { callback: v => (v * 100).toFixed(0) + '%' }, grid: { borderDash: [2, 2] } },
-                        x: { grid: { display: false } }
-                    }
-                }
-            });
-        }
-
-        function renderTable(labels, actual, theoretical, counts) {
-            const tbody = document.getElementById('dataTableBody');
-            tbody.innerHTML = '';
-            labels.forEach((label, i) => {
-                const actVal = actual[i];
-                const theoVal = theoretical[i];
-                // 【修复点】偏差率公式：(实际 - 理论) / 理论
-                const diff = actVal - theoVal;
-                const relDiff = theoVal > 0 ? (diff / theoVal) : 0; // 避免除以0
-                const diffPct = (relDiff * 100).toFixed(2);
-                
-                // 阈值设为 20% (相对偏差通常较大)
-                const isAlert = Math.abs(relDiff) > 0.2; 
-                const diffClass = isAlert ? (diff > 0 ? "text-red-500 font-bold" : "text-blue-500 font-bold") : "text-gray-400";
-                
-                const row = `
-                    <tr class="hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
-                        <td class="px-4 py-3 text-sm font-bold text-gray-800 font-mono">${label}</td>
-                        <td class="px-4 py-3 text-right text-sm text-gray-600 font-mono">${counts[i]}</td>
-                        <td class="px-4 py-3 text-right text-sm text-gray-600 font-mono">${(actVal * 100).toFixed(2)}%</td>
-                        <td class="px-4 py-3 text-right text-sm text-gray-400 font-mono">${(theoVal * 100).toFixed(2)}%</td>
-                        <td class="px-4 py-3 text-right text-sm font-mono ${diffClass}">${diff > 0 ? '+' : ''}${diffPct}%</td>
-                    </tr>
-                `;
-                tbody.innerHTML += row;
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.raw * 100).toFixed(2) + '%' } } }, scales: { y: { beginAtZero: true, ticks: { callback: v => (v * 100).toFixed(0) + '%' }, grid: { borderDash: [2, 2] } }, x: { grid: { display: false } } } }
             });
         }
     </script>
