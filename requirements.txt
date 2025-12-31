@@ -1,0 +1,8 @@
+flask
+pandas
+pdfplumber
+openpyxl
+requests
+matplotlib
+numpy
+scipy

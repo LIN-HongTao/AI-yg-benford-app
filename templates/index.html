@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上市公司年报本福特校验</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };</script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2563eb;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        [v-cloak] { display: none; }
+        
+        /* 手册样式 */
+        .manual-content h2 { font-size: 1.25rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem; }
+        .manual-content h3 { font-size: 1.1rem; font-weight: 600; margin-top: 1.2rem; margin-bottom: 0.5rem; color: #334155; }
+        .manual-content p { margin-bottom: 0.75rem; line-height: 1.6; color: #475569; }
+        .manual-content ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; color: #475569; }
+        .manual-content li { margin-bottom: 0.25rem; }
+        .manual-content code { background-color: #f1f5f9; padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-family: monospace; color: #db2777; }
+        .jax-math { overflow-x: auto; padding: 0.5rem 0; }
+    </style>
+</head>
+<body class="bg-gray-50 h-screen flex flex-col md:flex-row overflow-hidden font-sans text-slate-800">
+
+    <aside class="w-full md:w-80 bg-white border-r border-gray-200 flex-shrink-0 flex flex-col h-full shadow-sm z-10">
+        <div class="p-5 border-b border-gray-100 bg-slate-50">
+            <h1 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                本福特校验器
+            </h1>
+            <div class="flex justify-between items-center mt-2">
+                <p class="text-xs text-slate-400">Pro Statistics Version</p>
+                <button onclick="toggleManual(true)" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-600 px-2 py-1 rounded transition-colors flex items-center gap-1">用户手册</button>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-5 space-y-6">
+            
+            <div class="flex border-b border-gray-200 mb-4">
+                <button onclick="switchTab('auto')" id="tab-auto" class="flex-1 pb-2 text-sm text-center tab-active transition-colors">在线获取</button>
+                <button onclick="switchTab('manual')" id="tab-manual" class="flex-1 pb-2 text-sm text-center tab-inactive transition-colors">手动上传</button>
+            </div>
+
+            <div id="input-auto" class="space-y-3">
+                <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">公司代码</label>
+                        <input type="text" id="stockCode" value="600755" class="w-full px-3 py-2 text-sm border border-gray-300 rounded outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如: 600755">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">年份</label>
+                        <input type="text" id="year" value="2023" class="w-full px-3 py-2 text-sm border border-gray-300 rounded outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如: 2023">
+                    </div>
+                </div>
+            </div>
+
+            <div id="input-manual" class="space-y-3 hidden">
+                <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">上传年报 PDF</label>
+                        <input type="file" id="fileInput" accept=".pdf" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                        <p class="text-[10px] text-gray-400 mt-1">文件分析后将自动删除，不保存。</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">2. 校验参数</h2>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">校验位数</label>
+                        <select id="digitPosition" class="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="1">首位校验 (First Digit)</option>
+                            <option value="2">第二位校验 (Second Digit)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">数字体系</label>
+                        <select id="numeralSystem" class="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="decimal">十进制 (Decimal)</option>
+                            <option value="octal">八进制 (Octal)</option>
+                            <option value="hexadecimal">十六进制 (Hexadecimal)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-5 border-t border-gray-100 bg-white">
+            <button onclick="startAnalysis()" id="analyzeBtn" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium py-2.5 px-4 rounded-lg shadow-sm transition-all duration-200 flex justify-center items-center gap-2 group">
+                <span>开始分析</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+            </button>
+        </div>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto bg-slate-50/50 p-4 md:p-8 relative">
+        <div class="max-w-6xl mx-auto space-y-6">
+            
+            <div id="statusArea" class="hidden">
+                <div class="bg-blue-50 border border-blue-100 rounded-lg p-4 flex items-center gap-3 shadow-sm animate-pulse">
+                    <div class="loader"></div>
+                    <div>
+                        <h3 class="text-sm font-bold text-blue-800" id="statusTitle">处理中</h3>
+                        <p class="text-xs text-blue-600 mt-0.5" id="statusDesc">正在分析...</p>
+                    </div>
+                </div>
+            </div>
+
+            <section class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-gray-800">📊 统计分析结果</h3>
+                </div>
+                <div class="p-6">
+                    <div id="conclusionContainer">
+                         <div class="flex flex-col items-center justify-center py-8 text-gray-400 gap-2 font-mono text-sm">
+                            请设置参数并点击“开始分析”
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <section class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+                    <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                        <h3 class="text-sm font-bold text-gray-800">📈 分布走势图</h3>
+                    </div>
+                    <div class="p-4 flex-1 min-h-[300px]">
+                        <div class="relative h-full w-full">
+                            <canvas id="benfordChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+                    <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                        <h3 class="text-sm font-bold text-gray-800">📋 详细频数表</h3>
+                        <button id="exportBtn" onclick="exportToCSV()" class="hidden text-xs bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1 rounded border border-green-200 transition-colors flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            导出提取明细
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto flex-1">
+                        <table class="min-w-full divide-y divide-gray-100">
+                            <thead class="bg-gray-50 sticky top-0">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500">数字</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500">样本数</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500">实际 %</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500">理论 %</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500">偏差率</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-100 text-sm" id="dataTableBody">
+                                <tr>
+                                    <td colspan="5" class="px-6 py-8 text-center text-xs text-gray-400">暂无数据</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <div id="manualModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+         <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div class="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-xl">
+                <h2 class="text-xl font-bold text-gray-800">工具使用说明</h2>
+                <button onclick="toggleManual(false)" class="text-gray-400 hover:text-gray-600">关闭</button>
+            </div>
+            <div id="manualContent" class="p-8 overflow-y-auto manual-content">
+                <h1 class="text-2xl font-bold text-center mb-6 text-gray-900">上市公司年报本福特校验工具说明书</h1>
+                
+                <h2>1. 工具简介</h2>
+                <p>本工具基于 <strong>本福特定律 (Benford's Law)</strong> 对上市公司财务数据进行自动化合规校验。通过分析数据中首位或第二位数字的分布频率，检测数据是否存在人为修饰或操纵的痕迹。</p>
+                
+                <h2>2. 操作指南</h2>
+                <ul>
+                    <li><strong>数据输入：</strong> 
+                        <ul>
+                            <li><strong>在线获取</strong>：输入 6 位 A 股股票代码（如 <code>600755</code>）和 4 位年份。</li>
+                            <li><strong>手动上传</strong>：支持用户手动上传PDF。</li>
+                        </ul>
+                    </li>
+                    <li><strong>参数设置：</strong>
+                        <ul>
+                            <li><strong>校验位数</strong>：支持首位校验和第二位校验。</li>
+                            <li><strong>数字体系</strong>：支持十进制、八进制及十六进制分析。</li>
+                        </ul>
+                    </li>
+                    <li><strong>结果解读：</strong>
+                        <ul>
+                            <li><span class="text-green-600 font-bold">低风险 (P > 0.05)</span>：数据分布符合自然规律，未发现异常。</li>
+                            <li><span class="text-yellow-600 font-bold">中等风险 (0.01 > P > 0.05)</span>：数据存在显著偏离，只有不到 5% 的概率是自然发生的。</li>
+                            <li><span class="text-red-600 font-bold">高风险 (P < 0.01)</span>：高度怀疑数据被人为操纵，自然发生的概率低于 1%。</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h2>3. 数学原理与核心算法</h2>
+                <p>本工具不仅仅是简单的图表展示，其核心在于严格的统计学假设检验。</p>
+
+                <h3>3.1 理论分布 (The Null Hypothesis)</h3>
+                <p>我们假设财务数据是自然的，应遵循本福特定律。对于任意进制 $B$，数字 $d$ 的理论概率 $P(d)$ 为：</p>
+                <div class="jax-math">
+                    $$ P(d) = \log_B \left( 1 + \frac{1}{d} \right) $$
+                </div>
+                
+                <h3>3.2 偏差量化 (Chi-Square Statistic)</h3>
+                <p>我们计算实际观察频数 ($O_i$) 与理论期望频数 ($E_i$) 之间的距离，即卡方值 $\chi^2$：</p>
+                <div class="jax-math">
+                    $$ \chi^2 = \sum_{i=1}^{K} \frac{(O_i - E_i)^2}{E_i} $$
+                </div>
+                <p>其中 $K$ 是数字类别的数量（如十进制首位 $K=9$，自由度 $df=8$）。</p>
+
+                <h3>3.3 风险判定 (The P-Value)</h3>
+                <p><strong>这是本工具判定的核心。</strong> 卡方值 $\chi^2$ 只是一个原始分数，我们必须将其转换为概率值 <strong>P-value</strong>。</p>
+                <p>P值定义为：在零假设成立（数据无造假）的前提下，出现当前偏差或更大偏差的概率。计算公式为卡方分布的右尾概率（Survival Function）：</p>
+                <div class="jax-math">
+                    $$ P\text{-}value = \int_{\chi^2}^{\infty} f(x; df) \, dx $$
+                </div>
+                
+                <div class="bg-gray-50 p-4 rounded border-l-4 border-blue-500 my-4 text-sm">
+                    <strong>如何通俗理解？</strong><br>
+                    想象我们在掷骰子。
+                    <ul class="list-disc pl-5 mt-2">
+                        <li>如果 <strong>P = 0.80</strong>：这就像掷出了正常的点数，非常自然。</li>
+                        <li>如果 <strong>P = 0.01</strong>：这就像连续掷出了10次“6点”。虽然理论上有可能，但概率极低，我们有理由怀疑骰子被灌铅了（数据造假）。</li>
+                    </ul>
+                </div>
+
+                <h3>3.4 动态阈值</h3>
+                <p>由于不同进制（八进制/十进制）的自由度不同，本工具不使用固定的卡方阈值（如 15.51），而是实时计算：</p>
+                <ul>
+                    <li><strong>绿色阈值：</strong> $P=0.05$ 对应的卡方临界值。</li>
+                    <li><strong>红色阈值：</strong> $P=0.01$ 对应的卡方临界值。</li>
+                </ul>
+            </div>
+         </div>
+    </div>
+
+    <script>
+        let chartInstance = null;
+        let globalRawData = [];
+        let currentMode = 'auto'; // 'auto' or 'manual'
+
+        // === Tab 切换逻辑 ===
+        function switchTab(mode) {
+            currentMode = mode;
+            if (mode === 'auto') {
+                document.getElementById('tab-auto').className = 'flex-1 pb-2 text-sm text-center tab-active transition-colors';
+                document.getElementById('tab-manual').className = 'flex-1 pb-2 text-sm text-center tab-inactive transition-colors';
+                document.getElementById('input-auto').classList.remove('hidden');
+                document.getElementById('input-manual').classList.add('hidden');
+            } else {
+                document.getElementById('tab-auto').className = 'flex-1 pb-2 text-sm text-center tab-inactive transition-colors';
+                document.getElementById('tab-manual').className = 'flex-1 pb-2 text-sm text-center tab-active transition-colors';
+                document.getElementById('input-auto').classList.add('hidden');
+                document.getElementById('input-manual').classList.remove('hidden');
+            }
+        }
+
+        function toggleManual(show) {
+            const modal = document.getElementById('manualModal');
+            show ? modal.classList.remove('hidden') : modal.classList.add('hidden');
+        }
+
+        // === CSV 导出逻辑 (字段名+数字) ===
+        function exportToCSV() {
+            if (!globalRawData || globalRawData.length === 0) {
+                alert("没有可导出的数据");
+                return;
+            }
+
+            let csvContent = "\ufeff"; 
+            // 增加 "项目名称 (Row Label)"
+            csvContent += "项目名称 (Item),提取数值 (Value),校验位 (Digit),来源列名 (Column),原始行号 (Index)\n";
+
+            globalRawData.forEach(row => {
+                const label = `"${(row.row_label || '').replace(/"/g, '""')}"`;
+                const colName = `"${(row.column_name || '').replace(/"/g, '""')}"`;
+                const digit = row.extracted_digit || '';
+                
+                const line = `${label},${row.extracted_value},${digit},${colName},${row.row_index}`;
+                csvContent += line + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `benford_details_${new Date().getTime()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        async function startAnalysis() {
+            const digitPosition = document.getElementById('digitPosition').value;
+            const numeralSystem = document.getElementById('numeralSystem').value;
+            
+            const btn = document.getElementById('analyzeBtn');
+            const statusArea = document.getElementById('statusArea');
+            const statusDesc = document.getElementById('statusDesc');
+            const exportBtn = document.getElementById('exportBtn');
+
+            // 构造请求数据
+            let body;
+            let headers = {};
+            
+            if (currentMode === 'auto') {
+                const stockCode = document.getElementById('stockCode').value.trim();
+                const year = document.getElementById('year').value.trim();
+                if (!stockCode || !year) { alert("请输入公司代码和年份"); return; }
+                
+                headers['Content-Type'] = 'application/json';
+                body = JSON.stringify({
+                    stock_code: stockCode,
+                    year: year,
+                    digit_position: digitPosition,
+                    numeral_system: numeralSystem
+                });
+                statusDesc.innerText = `正在下载并分析 ${stockCode} (${year})...`;
+                
+            } else {
+                const fileInput = document.getElementById('fileInput');
+                if (fileInput.files.length === 0) { alert("请先选择 PDF 文件"); return; }
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                formData.append('digit_position', digitPosition);
+                formData.append('numeral_system', numeralSystem);
+                
+                body = formData; // fetch 自动处理 multipart headers
+                statusDesc.innerText = `正在上传并分析文件...`;
+            }
+
+            // UI Update
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            statusArea.classList.remove('hidden');
+            exportBtn.classList.add('hidden');
+            
+            document.getElementById('conclusionContainer').innerHTML = '<div class="text-center text-gray-400 py-4">计算中...</div>';
+            document.getElementById('dataTableBody').innerHTML = '';
+            if(chartInstance) chartInstance.destroy();
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: headers, // 如果是 FormData，不要手动设置 Content-Type
+                    body: body
+                });
+
+                const res = await response.json();
+                if (!res.success) throw new Error(res.message);
+
+                const data = res.data;
+                globalRawData = data.raw_data || [];
+                if (globalRawData.length > 0) exportBtn.classList.remove('hidden');
+
+                renderConclusion(data);
+                renderChart(data.labels, data.actual_freq, data.theoretical_freq);
+                renderTable(data.labels, data.actual_freq, data.theoretical_freq, data.counts);
+
+                statusArea.classList.add('hidden');
+
+            } catch (err) {
+                console.error(err);
+                statusDesc.innerText = "Error: " + err.message;
+                statusDesc.classList.add('text-red-600');
+                alert("分析失败: " + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        // ... (renderConclusion, renderChart 保持不变) ...
+        function renderConclusion(data) {
+             const container = document.getElementById('conclusionContainer');
+            const pVal = parseFloat(data.p_value);
+            const isSig = pVal < 0.05;
+            
+            let textHtml = data.conclusion.replace(/(严重偏离|高风险)/g, '<span class="text-red-600 font-bold">$1</span>')
+                                          .replace(/(显著偏离|中等风险)/g, '<span class="text-yellow-600 font-bold">$1</span>')
+                                          .replace(/(符合|低风险)/g, '<span class="text-green-600 font-bold">$1</span>');
+
+            const statsHtml = `
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                        <span class="text-xs text-blue-500 font-semibold uppercase tracking-wider">卡方统计量 (Chi²)</span>
+                        <div class="text-2xl font-mono font-bold text-blue-700 mt-1">${data.chi_square}</div>
+                    </div>
+                    <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                        <span class="text-xs text-indigo-500 font-semibold uppercase tracking-wider">P值 (P-Value)</span>
+                        <div class="text-2xl font-mono font-bold ${isSig ? 'text-red-600' : 'text-green-600'} mt-1">${data.p_value}</div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <span class="text-xs text-gray-500 font-semibold uppercase tracking-wider">自由度 (df)</span>
+                        <div class="text-2xl font-mono font-bold text-gray-700 mt-1">${data.degrees_of_freedom}</div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <span class="text-xs text-gray-500 font-semibold uppercase tracking-wider">临界值 (95%)</span>
+                        <div class="text-2xl font-mono font-bold text-gray-700 mt-1">${data.critical_value}</div>
+                    </div>
+                </div>
+                <div class="bg-white border-l-4 ${isSig ? 'border-red-400' : 'border-green-400'} pl-4 py-2">
+                    <div class="text-sm text-gray-600 whitespace-pre-line leading-relaxed">${textHtml}</div>
+                </div>
+            `;
+            container.innerHTML = statsHtml;
+        }
+
+        function renderChart(labels, actual, theoretical) {
+             const ctx = document.getElementById('benfordChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '实际分布',
+                            data: actual,
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                            borderRadius: 4,
+                            order: 2
+                        },
+                        {
+                            label: '理论分布',
+                            data: theoretical,
+                            type: 'line',
+                            borderColor: '#ef4444',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 4,
+                            pointBackgroundColor: '#fff',
+                            tension: 0.2,
+                            order: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.raw * 100).toFixed(2) + '%' } }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { callback: v => (v * 100).toFixed(0) + '%' }, grid: { borderDash: [2, 2] } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderTable(labels, actual, theoretical, counts) {
+            const tbody = document.getElementById('dataTableBody');
+            tbody.innerHTML = '';
+            labels.forEach((label, i) => {
+                const actVal = actual[i];
+                const theoVal = theoretical[i];
+                // 【修复点】偏差率公式：(实际 - 理论) / 理论
+                const diff = actVal - theoVal;
+                const relDiff = theoVal > 0 ? (diff / theoVal) : 0; // 避免除以0
+                const diffPct = (relDiff * 100).toFixed(2);
+                
+                // 阈值设为 20% (相对偏差通常较大)
+                const isAlert = Math.abs(relDiff) > 0.2; 
+                const diffClass = isAlert ? (diff > 0 ? "text-red-500 font-bold" : "text-blue-500 font-bold") : "text-gray-400";
+                
+                const row = `
+                    <tr class="hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
+                        <td class="px-4 py-3 text-sm font-bold text-gray-800 font-mono">${label}</td>
+                        <td class="px-4 py-3 text-right text-sm text-gray-600 font-mono">${counts[i]}</td>
+                        <td class="px-4 py-3 text-right text-sm text-gray-600 font-mono">${(actVal * 100).toFixed(2)}%</td>
+                        <td class="px-4 py-3 text-right text-sm text-gray-400 font-mono">${(theoVal * 100).toFixed(2)}%</td>
+                        <td class="px-4 py-3 text-right text-sm font-mono ${diffClass}">${diff > 0 ? '+' : ''}${diffPct}%</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+    </script>
+</body>
+</html>

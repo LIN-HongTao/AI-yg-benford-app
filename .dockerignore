@@ -1,0 +1,8 @@
+__pycache__
+*.pyc
+.git
+.vscode
+.idea
+temp_reports/*
+!temp_reports/.gitkeep
+venv
