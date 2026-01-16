@@ -22,8 +22,10 @@ class ExcelReader:
             "2001-2020.xlsx - Sheet1.csv", "2021-2024.xlsx - Sheet1.csv"
         ]
         
-        # 临时存储去重后的股票信息
-        unique_stocks = {}
+        # 临时存储去重后的股票信息: code -> set(names)
+        unique_stocks = defaultdict(set)
+        # 最新年份显示名: code -> (year_int, name)
+        latest_name = {}
 
         for f in files:
             path = os.path.join(self.data_dir, f)
@@ -75,19 +77,34 @@ class ExcelReader:
                         if year and year.lower() != 'nan':
                             self.stock_years[code].add(year)
 
-                        # 3. 构建搜索数据库 (去重)
-                        if code not in unique_stocks:
-                            unique_stocks[code] = name
-                        else:
-                            # 如果已有，优先保留较长的名称（有时候会有空简称）
-                            if len(name) > len(unique_stocks[code]):
-                                unique_stocks[code] = name
+                        # 3. 构建搜索数据库 (去重，保留多个简称)
+                        if name and name.lower() != 'nan':
+                            unique_stocks[code].add(name)
+                            try:
+                                year_int = int(year)
+                            except:
+                                year_int = None
+                            if year_int is not None:
+                                prev = latest_name.get(code)
+                                if prev is None or year_int > prev[0]:
+                                    latest_name[code] = (year_int, name)
                                 
             except Exception as e:
                 print(f"Error loading {f}: {e}")
 
         # 将去重后的股票信息转为列表，供搜索使用
-        self.stock_db = [{'code': k, 'name': v} for k, v in unique_stocks.items()]
+        self.stock_db = []
+        for code, names in unique_stocks.items():
+            if not names:
+                display_name = code
+                aliases = []
+            else:
+                aliases = sorted(names, key=lambda x: (-len(x), x))
+                if code in latest_name:
+                    display_name = latest_name[code][1]
+                else:
+                    display_name = aliases[0]
+            self.stock_db.append({'code': code, 'name': display_name, 'aliases': aliases})
         print(f"✅ ExcelReader 初始化完成: 加载了 {len(self.stock_db)} 只股票信息")
 
     def find_report_url(self, stock_code, year):
@@ -117,8 +134,10 @@ class ExcelReader:
         for stock in self.stock_db:
             code = stock['code']
             name = stock['name'].lower()
+            aliases = stock.get('aliases', [])
+            alias_hits = any(query in str(a).lower() for a in aliases)
             
-            if query in code or query in name:
+            if query in code or query in name or alias_hits:
                 results.append(stock)
                 
             if len(results) >= limit:
